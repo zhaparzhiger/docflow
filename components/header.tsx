@@ -15,7 +15,6 @@ export function Header({ currentPath }: HeaderProps) {
     { path: "/", label: "Главная", hasJwt: true },
     { path: "/dashboard", label: "Панель управления", hasJwt: Cookies.get("token") ? true : false },
     { path: "/cases", label: "Дела", hasJwt: Cookies.get("token") ? true : false  },
-    { path: "/analytics", label: "Аналитика", hasJwt: Cookies.get("token") ? true : false  },
     { path: "/about", label: "О системе", hasJwt: true },
   ]
 

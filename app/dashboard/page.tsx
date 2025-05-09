@@ -1,93 +1,93 @@
-"use client"
+"use client";
 
-import Link from "next/link"
-import { useState, useEffect } from "react"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { FileText, AlertTriangle, Clock, CheckCircle, Calendar, FileWarning, FileClock, FileCheck } from "lucide-react"
-import { Progress } from "@/components/ui/progress"
-import Swal from "sweetalert2"
-import { useRouter } from "next/navigation"
-import { MobileMenu } from "@/components/mobile-menu"
-import { Header } from "@/components/header"
-import Cookies from "js-cookie"
-
+import Link from "next/link";
+import { useState, useEffect } from "react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { FileText, AlertTriangle, Clock, CheckCircle, Calendar, FileWarning, FileClock, FileCheck } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
+import Swal from "sweetalert2";
+import { useRouter } from "next/navigation";
+import { MobileMenu } from "@/components/mobile-menu";
+import { Header } from "@/components/header";
+import Cookies from "js-cookie";
 
 export default function DashboardPage() {
-  const router = useRouter()
-  const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState("priority")
-  const [cases, setCases] = useState([])
+  const router = useRouter();
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [activeTab, setActiveTab] = useState("priority");
+  const [cases, setCases] = useState([]);
   const [stats, setStats] = useState({
     totalCases: 0,
     needAttention: 0,
     nextDeadline: 0,
     completed: 0,
-  })
+  });
 
   useEffect(() => {
-    
-    // Fetch cases from API
     const fetchCases = async () => {
-      const userId = await fetch("http://localhost:3000/api/auth/me", 
-        {
-          headers: {
-            'Authorization': `Bearer ${Cookies.get("token")}`
-          }
-        }
-      )
-
-    const userData = await userId.json()  
-
-    console.log("UserId", userData)
       try {
-        const response = await fetch("/api/cases")
-        if (!response.ok) {
-          throw new Error("Failed to fetch cases")
+        // Fetch user data
+        const userResponse = await fetch("/api/auth/me", {
+          headers: {
+            Authorization: `Bearer ${Cookies.get("token")}`,
+          },
+        });
+        if (!userResponse.ok) {
+          throw new Error("Failed to fetch user data");
+        }
+        const userData = await userResponse.json();
+        console.log("UserId", userData);
+
+        // Fetch cases
+        const casesResponse = await fetch("/api/cases");
+        if (!casesResponse.ok) {
+          throw new Error("Failed to fetch cases");
         }
 
-        const data = await response.json()
-        setCases(data)
+        const data = await casesResponse.json();
+        setCases(data);
 
         // Calculate stats
-        const totalCases = data.length
-        const needAttention = data.filter((c) => c.risk === "high").length
+        const totalCases = data.length;
+        const needAttention = data.filter((c) => c.risk === "high").length;
 
         // Find next deadline
-        const pendingCases = data.filter((c) => c.status !== "approved" && c.status !== "rejected")
-        let nextDeadline = 0
+        const pendingCases = data.filter((c) => c.status !== "approved" && c.status !== "rejected");
+        let nextDeadline = 0;
 
         if (pendingCases.length > 0) {
-          const today = new Date()
+          const today = new Date();
           const deadlines = pendingCases.map((c) => {
-            const deadline = new Date(c.deadline)
-            const diffTime = Math.abs(deadline - today)
-            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
-            return diffDays
-          })
+            const deadline = new Date(c.deadline);
+            const diffTime = Math.abs(deadline - today);
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            return diffDays;
+          });
 
-          nextDeadline = Math.min(...deadlines)
+          nextDeadline = Math.min(...deadlines);
         }
 
-        const completed = data.filter((c) => c.status === "approved").length
+        const completed = data.filter((c) => c.status === "approved").length;
 
         setStats({
           totalCases,
           needAttention,
           nextDeadline,
           completed,
-        })
-
-        setLoading(false)
+        });
       } catch (error) {
-        console.error("Error fetching cases:", error)
-        setLoading(false)
+        console.error("Error fetching cases:", error);
+        setError(error.message);
+      } finally {
+        setLoading(false);
       }
-    }
+    };
 
-    fetchCases()
-  }, [])
+    fetchCases();
+  }, []);
 
   const handleNewCase = () => {
     Swal.fire({
@@ -101,108 +101,113 @@ export default function DashboardPage() {
       cancelButtonColor: "#6b7280",
     }).then((result) => {
       if (result.isConfirmed) {
-        router.push("/upload")
+        router.push("/upload");
       }
-    })
-  }
+    });
+  };
 
   const handleCaseClick = (id) => {
-    router.push(`/document/${id}`)
-  }
+    router.push(`/document/${id}`);
+  };
 
   // Filter cases based on active tab
   const getFilteredCases = () => {
     if (activeTab === "priority") {
-      // Sort by risk (high to low)
       return [...cases]
         .filter((c) => c.risk === "high" || c.risk === "medium")
         .sort((a, b) => {
-          const riskOrder = { high: 0, medium: 1, low: 2 }
-          return riskOrder[a.risk] - riskOrder[b.risk]
+          const riskOrder = { high: 0, medium: 1, low: 2 };
+          return riskOrder[a.risk] - riskOrder[b.risk];
         })
-        .slice(0, 3)
+        .slice(0, 3);
     } else if (activeTab === "deadline") {
-      // Sort by deadline (closest first)
       return [...cases]
         .filter((c) => c.status !== "approved" && c.status !== "rejected")
         .sort((a, b) => new Date(a.deadline) - new Date(b.deadline))
-        .slice(0, 3)
+        .slice(0, 3);
     } else if (activeTab === "recent") {
-      // Sort by creation date (newest first)
-      return [...cases].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 3)
+      return [...cases].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 3);
     }
+    return [];
+  };
 
-    return []
-  }
-
-  const filteredCases = getFilteredCases()
+  const filteredCases = getFilteredCases();
 
   // Helper function to format deadline
   const formatDeadline = (deadlineDate) => {
-    const today = new Date()
-    const deadline = new Date(deadlineDate)
-    const diffTime = Math.abs(deadline - today)
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+    const today = new Date();
+    const deadline = new Date(deadlineDate);
+    const diffTime = Math.abs(deadline - today);
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
     if (deadline < today) {
-      return "Просрочено"
+      return "Просрочено";
     } else if (diffDays === 0) {
-      return "Сегодня"
+      return "Сегодня";
     } else if (diffDays === 1) {
-      return "Завтра"
+      return "Завтра";
     } else {
-      return `${diffDays} дней`
+      return `${diffDays} дней`;
     }
-  }
+  };
 
   // Helper function to get risk color
   const getRiskColor = (risk) => {
     switch (risk) {
       case "high":
-        return "text-red-500"
+        return "text-red-500";
       case "medium":
-        return "text-amber-500"
+        return "text-amber-500";
       case "low":
-        return "text-green-500"
+        return "text-green-500";
       default:
-        return "text-muted-foreground"
+        return "text-muted-foreground";
     }
-  }
+  };
 
   // Helper function to get risk icon
   const getRiskIcon = (risk) => {
-    return <AlertTriangle className={`h-4 w-4 ${getRiskColor(risk)} flex-shrink-0`} />
-  }
+    return <AlertTriangle className={`h-4 w-4 ${getRiskColor(risk)} flex-shrink-0`} />;
+  };
 
   // Helper function to get risk text
   const getRiskText = (risk) => {
     switch (risk) {
       case "high":
-        return "Высокий"
+        return "Высокий";
       case "medium":
-        return "Средний"
+        return "Средний";
       case "low":
-        return "Низкий"
+        return "Низкий";
       default:
-        return "Неизвестно"
+        return "Неизвестно";
     }
-  }
+  };
 
   // Helper function to get border color based on risk
   const getBorderColor = (risk) => {
     switch (risk) {
       case "high":
-        return "border-l-red-500"
+        return "border-l-red-500";
       case "medium":
-        return "border-l-amber-500"
+        return "border-l-amber-500";
       case "low":
-        return "border-l-green-500"
+        return "border-l-green-500";
       default:
-        return "border-l-gray-500"
+        return "border-l-gray-500";
     }
-  }
+  };
 
-  
+  if (error) {
+    return (
+      <div className="flex min-h-screen flex-col">
+        <Header currentPath="/dashboard" />
+        <main className="flex-1 container py-6">
+          <div className="text-center py-8 text-red-600">Ошибка: {error}</div>
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -219,22 +224,22 @@ export default function DashboardPage() {
                 Swal.fire({
                   title: "Выбор периода",
                   html: `
-            <div class="flex flex-col gap-4">
-              <div>
-                <label class="block text-sm font-medium mb-1">Начало периода</label>
-                <input type="date" class="w-full p-2 border rounded" value="2025-05-01">
-              </div>
-              <div>
-                <label class="block text-sm font-medium mb-1">Конец периода</label>
-                <input type="date" class="w-full p-2 border rounded" value="2025-05-31">
-              </div>
-            </div>
-          `,
+                    <div class="flex flex-col gap-4">
+                      <div>
+                        <label class="block text-sm font-medium mb-1">Начало периода</label>
+                        <input type="date" class="w-full p-2 border rounded" value="2025-05-01">
+                      </div>
+                      <div>
+                        <label class="block text-sm font-medium mb-1">Конец периода</label>
+                        <input type="date" class="w-full p-2 border rounded" value="2025-05-31">
+                      </div>
+                    </div>
+                  `,
                   showCancelButton: true,
                   confirmButtonText: "Применить",
                   cancelButtonText: "Отмена",
                   confirmButtonColor: "#10b981",
-                })
+                });
               }}
             >
               <Calendar className="mr-2 h-4 w-4" />
@@ -274,7 +279,7 @@ export default function DashboardPage() {
                     <div className="h-4 w-8 bg-muted animate-pulse rounded"></div>
                   ) : (
                     <span className="font-medium animate-fadeIn">
-                      {Math.round((stats.completed / stats.totalCases) * 100) || 0}%
+                      {stats.totalCases > 0 ? Math.round((stats.completed / stats.totalCases) * 100) : 0}%
                     </span>
                   )}
                 </div>
@@ -282,7 +287,7 @@ export default function DashboardPage() {
                   <div className="h-2 bg-muted animate-pulse rounded"></div>
                 ) : (
                   <Progress
-                    value={Math.round((stats.completed / stats.totalCases) * 100) || 0}
+                    value={stats.totalCases > 0 ? Math.round((stats.completed / stats.totalCases) * 100) : 0}
                     className="h-2 transition-all duration-1000"
                   />
                 )}
@@ -416,25 +421,9 @@ export default function DashboardPage() {
             <h2 className="text-xl font-bold mb-4">Дела, требующие внимания</h2>
             <div className="grid gap-4">
               {loading ? (
-                Array(3)
-                  .fill(0)
-                  .map((_, i) => (
-                    <Card key={i} className="border-l-4 border-l-gray-200">
-                      <CardContent className="p-4">
-                        <div className="flex items-start justify-between">
-                          <div className="w-full">
-                            <div className="h-6 w-3/4 bg-muted animate-pulse rounded mb-2"></div>
-                            <div className="h-4 w-full bg-muted animate-pulse rounded mb-2"></div>
-                            <div className="h-4 w-1/2 bg-muted animate-pulse rounded"></div>
-                          </div>
-                          <div className="flex gap-2">
-                            <div className="h-9 w-16 bg-muted animate-pulse rounded"></div>
-                            <div className="h-9 w-24 bg-muted animate-pulse rounded"></div>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))
+                <div className="text-center py-8 text-muted-foreground">Загрузка...</div>
+              ) : cases.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">Пока дел нет</div>
               ) : filteredCases.length > 0 ? (
                 filteredCases.map((caseItem) => (
                   <Card
@@ -481,8 +470,8 @@ export default function DashboardPage() {
                             size="sm"
                             className="transition-all duration-200 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200"
                             onClick={(e) => {
-                              e.stopPropagation()
-                              handleCaseClick(caseItem._id)
+                              e.stopPropagation();
+                              handleCaseClick(caseItem._id);
                             }}
                           >
                             Детали
@@ -491,8 +480,8 @@ export default function DashboardPage() {
                             className="bg-emerald-600 hover:bg-emerald-700 transition-all duration-200 hover:shadow-lg"
                             size="sm"
                             onClick={(e) => {
-                              e.stopPropagation()
-                              handleCaseClick(caseItem._id)
+                              e.stopPropagation();
+                              handleCaseClick(caseItem._id);
                             }}
                           >
                             Рассмотреть
@@ -511,25 +500,9 @@ export default function DashboardPage() {
             <h2 className="text-xl font-bold mb-4">Ближайшие дедлайны</h2>
             <div className="grid gap-4">
               {loading ? (
-                Array(3)
-                  .fill(0)
-                  .map((_, i) => (
-                    <Card key={i} className="border-l-4 border-l-gray-200">
-                      <CardContent className="p-4">
-                        <div className="flex items-start justify-between">
-                          <div className="w-full">
-                            <div className="h-6 w-3/4 bg-muted animate-pulse rounded mb-2"></div>
-                            <div className="h-4 w-full bg-muted animate-pulse rounded mb-2"></div>
-                            <div className="h-4 w-1/2 bg-muted animate-pulse rounded"></div>
-                          </div>
-                          <div className="flex gap-2">
-                            <div className="h-9 w-16 bg-muted animate-pulse rounded"></div>
-                            <div className="h-9 w-24 bg-muted animate-pulse rounded"></div>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))
+                <div className="text-center py-8 text-muted-foreground">Загрузка...</div>
+              ) : cases.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">Пока дел нет</div>
               ) : filteredCases.length > 0 ? (
                 filteredCases.map((caseItem) => (
                   <Card
@@ -538,8 +511,8 @@ export default function DashboardPage() {
                       new Date(caseItem.deadline) < new Date()
                         ? "border-l-red-500"
                         : new Date(caseItem.deadline) < new Date(Date.now() + 3 * 24 * 60 * 60 * 1000)
-                          ? "border-l-amber-500"
-                          : "border-l-blue-500"
+                        ? "border-l-amber-500"
+                        : "border-l-blue-500"
                     } transition-all duration-200 hover:shadow-md cursor-pointer`}
                     onClick={() => handleCaseClick(caseItem._id)}
                   >
@@ -552,8 +525,8 @@ export default function DashboardPage() {
                                 new Date(caseItem.deadline) < new Date()
                                   ? "text-red-500"
                                   : new Date(caseItem.deadline) < new Date(Date.now() + 3 * 24 * 60 * 60 * 1000)
-                                    ? "text-amber-500"
-                                    : "text-blue-500"
+                                  ? "text-amber-500"
+                                  : "text-blue-500"
                               } flex-shrink-0`}
                             />
                             <h3 className="font-semibold truncate">{caseItem.title}</h3>
@@ -566,8 +539,8 @@ export default function DashboardPage() {
                                   new Date(caseItem.deadline) < new Date()
                                     ? "text-red-500"
                                     : new Date(caseItem.deadline) < new Date(Date.now() + 3 * 24 * 60 * 60 * 1000)
-                                      ? "text-amber-500"
-                                      : "text-blue-500"
+                                    ? "text-amber-500"
+                                    : "text-blue-500"
                                 } flex-shrink-0`}
                               />
                               <span
@@ -575,8 +548,8 @@ export default function DashboardPage() {
                                   new Date(caseItem.deadline) < new Date()
                                     ? "text-red-500"
                                     : new Date(caseItem.deadline) < new Date(Date.now() + 3 * 24 * 60 * 60 * 1000)
-                                      ? "text-amber-500"
-                                      : "text-blue-500"
+                                    ? "text-amber-500"
+                                    : "text-blue-500"
                                 }
                               >
                                 Дедлайн: {formatDeadline(caseItem.deadline)}
@@ -594,8 +567,8 @@ export default function DashboardPage() {
                             size="sm"
                             className="transition-all duration-200 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200"
                             onClick={(e) => {
-                              e.stopPropagation()
-                              handleCaseClick(caseItem._id)
+                              e.stopPropagation();
+                              handleCaseClick(caseItem._id);
                             }}
                           >
                             Детали
@@ -604,8 +577,8 @@ export default function DashboardPage() {
                             className="bg-emerald-600 hover:bg-emerald-700 transition-all duration-200 hover:shadow-lg"
                             size="sm"
                             onClick={(e) => {
-                              e.stopPropagation()
-                              handleCaseClick(caseItem._id)
+                              e.stopPropagation();
+                              handleCaseClick(caseItem._id);
                             }}
                           >
                             Рассмотреть
@@ -624,25 +597,9 @@ export default function DashboardPage() {
             <h2 className="text-xl font-bold mb-4">Недавно добавленные</h2>
             <div className="grid gap-4">
               {loading ? (
-                Array(3)
-                  .fill(0)
-                  .map((_, i) => (
-                    <Card key={i} className="border-l-4 border-l-gray-200">
-                      <CardContent className="p-4">
-                        <div className="flex items-start justify-between">
-                          <div className="w-full">
-                            <div className="h-6 w-3/4 bg-muted animate-pulse rounded mb-2"></div>
-                            <div className="h-4 w-full bg-muted animate-pulse rounded mb-2"></div>
-                            <div className="h-4 w-1/2 bg-muted animate-pulse rounded"></div>
-                          </div>
-                          <div className="flex gap-2">
-                            <div className="h-9 w-16 bg-muted animate-pulse rounded"></div>
-                            <div className="h-9 w-24 bg-muted animate-pulse rounded"></div>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))
+                <div className="text-center py-8 text-muted-foreground">Загрузка...</div>
+              ) : cases.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">Пока дел нет</div>
               ) : filteredCases.length > 0 ? (
                 filteredCases.map((caseItem) => (
                   <Card
@@ -677,8 +634,8 @@ export default function DashboardPage() {
                             size="sm"
                             className="transition-all duration-200 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200"
                             onClick={(e) => {
-                              e.stopPropagation()
-                              handleCaseClick(caseItem._id)
+                              e.stopPropagation();
+                              handleCaseClick(caseItem._id);
                             }}
                           >
                             Детали
@@ -687,8 +644,8 @@ export default function DashboardPage() {
                             className="bg-emerald-600 hover:bg-emerald-700 transition-all duration-200 hover:shadow-lg"
                             size="sm"
                             onClick={(e) => {
-                              e.stopPropagation()
-                              handleCaseClick(caseItem._id)
+                              e.stopPropagation();
+                              handleCaseClick(caseItem._id);
                             }}
                           >
                             Рассмотреть
@@ -818,6 +775,5 @@ export default function DashboardPage() {
         </div>
       </main>
     </div>
-  )
+  );
 }
-

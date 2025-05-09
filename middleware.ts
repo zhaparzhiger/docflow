@@ -1,15 +1,21 @@
-import { NextResponse } from "next/server"
-import type { NextRequest } from "next/server"
+import { NextResponse } from 'next/server';
 
-// This middleware runs before any route handlers
-export function middleware(request: NextRequest) {
-  // Add a custom header to indicate we're in a serverless environment
-  const response = NextResponse.next()
-  response.headers.set("x-environment", process.env.NODE_ENV || "production")
-  return response
+export function middleware(request) {
+  const response = NextResponse.next();
+
+  // Add CORS headers
+  response.headers.set('Access-Control-Allow-Origin', 'https://800b-5-251-60-112.ngrok-free.app');
+  response.headers.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+
+  // Handle preflight OPTIONS request
+  if (request.method === 'OPTIONS') {
+    return new NextResponse(null, { status: 204, headers: response.headers });
+  }
+
+  return response;
 }
 
-// Only run middleware on API routes
 export const config = {
-  matcher: "/api/:path*",
-}
+  matcher: '/api/:path*', // Apply to all API routes
+};
